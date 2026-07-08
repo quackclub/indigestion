@@ -1,6 +1,14 @@
-# indigestion
-
-A Slack bot (TypeScript + Bun) that lets channel members opt individual messages into a public RSS feed and JSON API.
+<table border="0">
+  <tr>
+    <td rowspan="2"><img width="84" height="84" alt="image" src="https://github.com/user-attachments/assets/eaec6187-0389-4e87-814a-7820af5ad761" />
+</td>
+    <td>indigestion</td>
+  </tr>
+  <tr>
+    <td>A  (TypeScript + Bun) Slack bot that lets channel members opt individual messages into a RSS feeds, a REST API, and webhooks.
+</td>
+  </tr>
+</table>
 
 ## How it works
 
@@ -9,38 +17,6 @@ A Slack bot (TypeScript + Bun) that lets channel members opt individual messages
 3. The **channel creator** runs `/indigestion enable`
 4. Messages get approved manually (buttons) or automatically (auto-approve)
 5. Approved messages are stored in PostgreSQL and served via RSS/JSON/Webhooks
-
-## Setup
-
-### Create a Slack App
-
-Go to https://api.slack.com/apps and create a new app called "indigestion".
-
-**OAuth & Permissions** → **Bot Token Scopes**: add all of:
-
-| Scope | Why |
-|-------|-----|
-| `channels:history` | Read messages (to fetch edited content on approval) |
-| `channels:read` | Read channel metadata (name, creator) |
-| `chat:write` | Post message with buttons |
-| `commands` | Register `/indigestion` |
-| `groups:history` | Read private channel messages |
-| `groups:read` | Read private channel metadata |
-| `team:read` | Read workspace name |
-
-**Event Subscriptions** → **Enable Events** → set **Request URL** to `https://your-host/events` → subscribe to bot events:
-- `message.channels`
-- `message.groups`
-- `member_joined_channel`
-
-**Slash Commands** → **Create New Command**:
-| Field | Value |
-|-------|-------|
-| Command | `/indigestion` |
-| Request URL | `https://your-host/slack` |
-| Short Description | `Manage indigestion for the channel` |
-
-**Interactivity & Shortcuts** → **Enable Interactivity** → set **Request URL** to `https://your-host/interactions`.
 
 ## Environment
 
@@ -92,11 +68,6 @@ When approved, fires `POST` to the webhook URL:
 }
 ```
 
-## Feeds
-
-- **RSS**: `https://your-host/feed/{channel_id}`
-- **JSON**: `https://your-host/feed/{channel_id}.json?limit=50&offset=0`
-
 ## Drizzle
 
 ```bash
@@ -106,18 +77,3 @@ bun run db:generate  # Generate migration
 bun run db:migrate   # Run migrations
 ```
 
-## Project structure
-
-```
-src/
-├── db/schema.ts       — Drizzle ORM schema
-├── db/migrate.ts      — Auto-creates tables on startup
-├── store/
-│   ├── store.ts       — Store interface
-│   ├── pg.ts          — PostgresStore
-│   ├── memory.ts      — MemoryStore for testing
-│   └── memory.test.ts
-└── index.ts           — Bun.serve server
-compose.yml            — Postgres + app + tunnel
-Dockerfile
-```
