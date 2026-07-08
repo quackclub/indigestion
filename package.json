@@ -1,0 +1,34 @@
+{
+  "name": "indigestion",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "test:pg": "TEST_DATABASE_URL=postgres://indigestion:indigestion@localhost:5433/indigestion_test bun test",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:drop": "drizzle-kit drop",
+    "db:check": "drizzle-kit check"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@orpc/client": "^1.14.7",
+    "@orpc/openapi": "^1.14.7",
+    "@orpc/server": "^1.14.7",
+    "@slack/events-api": "^3.0.1",
+    "@slack/web-api": "^7.18.0",
+    "drizzle-orm": "^0.45.2",
+    "feed": "^5.2.1",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
+  }
+}
