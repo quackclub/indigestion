@@ -5,6 +5,7 @@ export interface StoreChannel {
   enabled: boolean;
   webhookUrl: string;
   autoApproveUsers: string[];
+  metadataSchema: string;
   createdAt: string;
 }
 
@@ -16,6 +17,7 @@ export interface StoreMessage {
   userName: string;
   text: string;
   timestamp: string;
+  metadata: any;
 }
 
 export interface Store {

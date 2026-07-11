@@ -13,6 +13,15 @@ let store: PostgresStore;
 beforeAll(async () => {
   await pushSchema(TEST_DB_URL);
   store = new PostgresStore(TEST_DB_URL);
+  // Clean any leftover data from previous runs
+  const { sql } = await import("drizzle-orm");
+  const { drizzle } = await import("drizzle-orm/postgres-js");
+  const postgres = await import("postgres");
+  const cleanClient = postgres.default(TEST_DB_URL, { max: 1 });
+  const cleanDb = drizzle(cleanClient);
+  await cleanDb.execute(sql`DELETE FROM messages`);
+  await cleanDb.execute(sql`DELETE FROM channels`);
+  await cleanClient.end();
 });
 
 afterAll(() => {

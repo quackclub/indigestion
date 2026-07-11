@@ -14,6 +14,7 @@ export async function pushSchema(connectionString: string) {
       enabled INTEGER NOT NULL DEFAULT 0,
       webhook_url TEXT NOT NULL DEFAULT '',
       auto_approve_users TEXT NOT NULL DEFAULT '',
+      metadata_schema TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT now()
     )
   `);
@@ -26,7 +27,8 @@ export async function pushSchema(connectionString: string) {
       user_id TEXT NOT NULL DEFAULT '',
       user_name TEXT NOT NULL DEFAULT '',
       text TEXT NOT NULL DEFAULT '',
-      timestamp TEXT NOT NULL
+      timestamp TEXT NOT NULL,
+      metadata JSONB NOT NULL DEFAULT '{}'
     )
   `);
 
@@ -41,6 +43,12 @@ export async function pushSchema(connectionString: string) {
   // Add auto_approve_users column if it doesn't exist (for existing DBs)
   await db.execute(sql`
     ALTER TABLE channels ADD COLUMN IF NOT EXISTS auto_approve_users TEXT NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    ALTER TABLE channels ADD COLUMN IF NOT EXISTS metadata_schema TEXT NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata TEXT NOT NULL DEFAULT ''
   `);
 
   await client.end();

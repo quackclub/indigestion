@@ -8,6 +8,10 @@ services:
       - BASE_URL=${BASE_URL:-http://localhost:8080}
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - LOCKDOWN_USERS=${LOCKDOWN_USERS}
+      - HACK_CLUB_CDN_KEY=${HACK_CLUB_CDN_KEY}
+      - API_USERNAME=${API_USERNAME}
+      - API_PASSWORD=${API_PASSWORD}
       - DATABASE_URL=postgres://indigestion:indigestion@db:5432/indigestion
     depends_on:
       db:

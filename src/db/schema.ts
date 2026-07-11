@@ -1,4 +1,4 @@
-import { pgTable, text, integer, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 export const channels = pgTable("channels", {
   id: text("id").primaryKey(),
@@ -7,6 +7,7 @@ export const channels = pgTable("channels", {
   enabled: integer("enabled").notNull().default(0),
   webhookUrl: text("webhook_url").notNull().default(""),
   autoApproveUsers: text("auto_approve_users").notNull().default(""),
+  metadataSchema: text("metadata_schema").notNull().default(""),
   createdAt: text("created_at").notNull().default("now()"),
 });
 
@@ -20,6 +21,7 @@ export const messages = pgTable(
     userName: text("user_name").notNull().default(""),
     text: text("text").notNull().default(""),
     timestamp: text("timestamp").notNull(),
+    metadata: jsonb("metadata").notNull().default("{}"),
   },
   (t) => ({
     uniqueMsg: uniqueIndex("uq_messages_channel_ts").on(t.channelId, t.slackTs),

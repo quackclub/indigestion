@@ -15,6 +15,10 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const API_USERNAME = process.env.API_USERNAME || "admin";
 const API_PASSWORD = process.env.API_PASSWORD || "";
 const LOCKDOWN_USERS = (process.env.LOCKDOWN_USERS || "").split(",").map((s) => s.trim()).filter(Boolean);
+if (LOCKDOWN_USERS.length > 0) {
+  console.log(`lockdown active for users: [${LOCKDOWN_USERS.join(", ")}]`);
+}
+const HACK_CLUB_CDN_KEY = process.env.HACK_CLUB_CDN_KEY || "";
 
 if (!SLACK_BOT_TOKEN || !SLACK_SIGNING_SECRET) {
   console.error("Missing SLACK_BOT_TOKEN or SLACK_SIGNING_SECRET");
@@ -123,10 +127,41 @@ async function fireWebhook(ch: StoreChannel, msg: StoreMessage) {
           user_name: msg.userName,
           text: msg.text,
           timestamp: msg.timestamp,
+          metadata: msg.metadata ? JSON.parse(msg.metadata) : undefined,
         },
       }),
     });
   } catch {}
+}
+
+// --- Upload file from Slack to Hack Club CDN ---
+
+async function uploadToCDN(slackUrl: string): Promise<string> {
+  if (!HACK_CLUB_CDN_KEY) return slackUrl;
+
+  // Download from Slack using bot token
+  const resp = await fetch(slackUrl, {
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+  });
+  if (!resp.ok) return slackUrl;
+
+  const blob = await resp.blob();
+  const formData = new FormData();
+  formData.append("file", blob, "upload");
+
+  const cdnResp = await fetch("https://cdn.hackclub.com/api/v4/upload", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${HACK_CLUB_CDN_KEY}` },
+    body: formData,
+  });
+  if (!cdnResp.ok) {
+    const err = await cdnResp.text();
+    console.error("CDN upload failed:", err);
+    return slackUrl;
+  }
+
+  const data = (await cdnResp.json()) as any;
+  return data.url || slackUrl;
 }
 
 // --- Event handlers ---
@@ -143,6 +178,7 @@ async function handleMemberJoined(channelId: string, userId: string) {
     enabled: false,
     webhookUrl: "",
     autoApproveUsers: [],
+    metadataSchema: "",
     createdAt: "",
   };
   await store.upsertChannel(ch);
@@ -174,15 +210,16 @@ async function handleMessage(channelId: string, userId: string, text: string, ts
       userName,
       text,
       timestamp: slackTsToTime(ts).toISOString(),
+      metadata: {},
     });
-    await fireWebhook(ch, { slackTs: ts, channelId, userId, userName, text, timestamp: slackTsToTime(ts).toISOString() });
+    await fireWebhook(ch, { slackTs: ts, channelId, userId, userName, text, timestamp: slackTsToTime(ts).toISOString(), metadata: {} });
     return;
   }
 
   // Manual mode: show Yep!/No buttons for every message
   const section = {
     type: "section",
-    text: { type: "mrkdwn", text: `Add this to the SlackFeed? 👇\n>${text}` },
+    text: { type: "mrkdwn", text: `Expose this message to indigestion via RSS and API?\n>${text}\n` },
     accessory: {
       type: "button",
       action_id: "slackfeed_yes",
@@ -253,7 +290,7 @@ const server = Bun.serve({
       return new Response("ok", { status: 200 });
     }
 
-    // === Interactive Components (button clicks) ===
+    // === Interactive Components (button clicks + view submissions) ===
 
     if (path === "/interactions" && req.method === "POST") {
       const body = await readBody(req);
@@ -262,6 +299,66 @@ const server = Bun.serve({
       if (!payloadStr) return jsonResponse({ error: "missing payload" }, 400);
 
       const cb = JSON.parse(payloadStr);
+
+      // Handle view submission (modal submit)
+      if (cb.type === "view_submission" && cb.view?.callback_id === "metadata_modal") {
+        const privateMeta = JSON.parse(cb.view.private_metadata || "{}");
+        const { channelId, messageTs } = privateMeta;
+        const channel = await store.getChannel(channelId);
+        if (!channel || !channel.enabled) {
+          return jsonResponse({});
+        }
+
+        let schema: any = null;
+        try { schema = JSON.parse(channel.metadataSchema); } catch {}
+
+        const metadata = schema ? await (async () => {
+          const m: Record<string, any> = {};
+          for (const field of schema.fields || []) {
+            const values = cb.view.state?.values?.[`field_${field.action_id}`]?.[field.action_id];
+            if (!values) continue;
+            if (field.type === "multi_static_select") m[field.action_id] = values.selected_options?.map((o: any) => o.value) || [];
+            else if (field.type === "datepicker") m[field.action_id] = values.selected_date || "";
+            else if (field.type === "file_input") {
+              const files = values.files || [];
+              m[field.action_id] = await Promise.all(
+                files.map(async (f: any) => {
+                  if (!f.url_private) return { ...f, cdn_url: null };
+                  const cdnUrl = await uploadToCDN(f.url_private);
+                  return { ...f, cdn_url: cdnUrl };
+                }),
+              );
+            }
+            else m[field.action_id] = values.value || "";
+          }
+          return JSON.stringify(m);
+        })() : "";
+
+        const client = new WebClient(SLACK_BOT_TOKEN);
+        try {
+          const history = await client.conversations.history({ channel: channelId, latest: messageTs, limit: 1, inclusive: true });
+          const msg = history.messages?.[0] as any;
+          if (!msg) return jsonResponse({});
+
+          let userName = msg.user || "";
+          try { const u = await client.users.info({ user: msg.user }); userName = (u.user as any)?.name || userName; } catch {}
+
+          await store.upsertMessage({
+            slackTs: messageTs,
+            channelId,
+            userId: msg.user || "",
+            userName,
+            text: msg.text || "",
+            timestamp: slackTsToTime(messageTs).toISOString(),
+            metadata,
+          });
+
+          await fireWebhook(channel, { slackTs: messageTs, channelId, userId: msg.user || "", userName, text: msg.text || "", timestamp: slackTsToTime(messageTs).toISOString(), metadata });
+        } catch {}
+        return jsonResponse({});
+      }
+
+      // Handle block actions (button clicks)
       if (cb.type !== "block_actions") return jsonResponse({});
 
       const action = cb.actions?.[0];
@@ -270,6 +367,7 @@ const server = Bun.serve({
       const channelId = cb.channel?.id;
       const messageTs = action.value;
       const responseUrl = cb.response_url;
+      const triggerId = cb.trigger_id;
 
       const ch = await store.getChannel(channelId);
       if (!ch || !ch.enabled) {
@@ -278,6 +376,24 @@ const server = Bun.serve({
       }
 
       if (action.action_id === "slackfeed_yes") {
+        // If channel has a metadata schema, open modal instead of direct save
+        if (ch.metadataSchema) {
+          let schema: any = null;
+          try { schema = JSON.parse(ch.metadataSchema); } catch {}
+          if (schema && schema.fields?.length > 0) {
+            const { openMetadataModal } = await import("./api/modal");
+            try {
+              await openMetadataModal(slack, triggerId, channelId, messageTs, schema, ch.metadataSchema);
+              await slackResponse(responseUrl, "");
+              return jsonResponse({});
+            } catch (err: any) {
+              await slackResponse(responseUrl, `Error opening form: ${err.message}`);
+              return jsonResponse({});
+            }
+          }
+        }
+
+        // No schema — direct save (existing logic)
         try {
           const history = await slack.conversations.history({
             channel: channelId,
@@ -292,10 +408,7 @@ const server = Bun.serve({
           }
 
           let userName = msg.user || "";
-          try {
-            const u = await slack.users.info({ user: msg.user });
-            userName = (u.user as any)?.name || userName;
-          } catch {}
+          try { const u = await slack.users.info({ user: msg.user }); userName = (u.user as any)?.name || userName; } catch {}
 
           await store.upsertMessage({
             slackTs: messageTs,
@@ -304,9 +417,10 @@ const server = Bun.serve({
             userName,
             text: msg.text || "",
             timestamp: slackTsToTime(messageTs).toISOString(),
+            metadata: {},
           });
 
-          const savedMsg = { slackTs: messageTs, channelId, userId: msg.user || "", userName, text: msg.text || "", timestamp: slackTsToTime(messageTs).toISOString() };
+          const savedMsg = { slackTs: messageTs, channelId, userId: msg.user || "", userName, text: msg.text || "", timestamp: slackTsToTime(messageTs).toISOString(), metadata: {} };
           await fireWebhook(ch, savedMsg);
 
           await slackResponse(responseUrl, "✅ Message added to the SlackFeed!");
@@ -372,7 +486,7 @@ const server = Bun.serve({
           name = (conv.channel as any)?.name || targetChannelId;
         } catch {}
         const auth = await slack.auth.test();
-        ch = { id: targetChannelId, name, teamId: auth.team_id || "", enabled: false, webhookUrl: "", autoApproveUsers: [], createdAt: "" };
+        ch = { id: targetChannelId, name, teamId: auth.team_id || "", enabled: false, webhookUrl: "", autoApproveUsers: [], metadataSchema: "", createdAt: "" };
         await store.upsertChannel(ch);
       }
 
@@ -385,7 +499,8 @@ const server = Bun.serve({
       const targetManager = () => isChannelManager(targetChannelId, userId);
 
       // --- Lockdown: restrict write commands to approved users ---
-      if (LOCKDOWN_USERS.length > 0 && !LOCKDOWN_USERS.includes(userId) && cmd !== "status") {
+      // Blank command (help) and status are always public
+      if (LOCKDOWN_USERS.length > 0 && !LOCKDOWN_USERS.includes(userId) && cmd !== "status" && cmd !== "") {
         return jsonResponse({
           response_type: "ephemeral",
           text: "🔒 SlackFeed is in lockdown mode. Only authorized users can run commands.",
@@ -486,22 +601,40 @@ const server = Bun.serve({
 
         case "status": {
           const chName = targetChannelId === sourceChannelId ? "" : `#${ch.name} `;
+
+          // Build permissions info
+          const perms: string[] = [];
+          try {
+            const conv = await slack.conversations.info({ channel: targetChannelId });
+            const creator = (conv.channel as any)?.creator;
+            if (creator === userId) perms.push("channel creator");
+          } catch {}
+          if (LOCKDOWN_USERS.includes(userId)) perms.push("lockdown override");
+          const permStr = perms.length > 0 ? `\nYour perms: ${perms.join(", ")}` : "\nYour perms: none (can view feeds only)";
+
           if (ch.enabled) {
             let msg = `✅ SlackFeed enabled for ${chName}\nRSS: ${BASE_URL}/feed/${targetChannelId}\nJSON: ${BASE_URL}/feed/${targetChannelId}.json`;
             if (ch.webhookUrl) msg += `\nWebhook: ${ch.webhookUrl}`;
             if (ch.autoApproveUsers.length > 0) {
               msg += `\nAuto-approve: ${ch.autoApproveUsers.map((id) => `<@${id}>`).join(", ")}`;
             }
+            if (ch.metadataSchema) {
+              try {
+                const s = JSON.parse(ch.metadataSchema);
+                msg += `\nMetadata schema: ${s.fields?.length || 0} field(s)`;
+              } catch {}
+            }
+            msg += permStr;
             return jsonResponse({ response_type: "ephemeral", text: msg });
           }
-          return jsonResponse({ response_type: "ephemeral", text: `SlackFeed is not enabled for ${chName}Run \`/slackfeed enable\` to start.` });
+          return jsonResponse({ response_type: "ephemeral", text: `SlackFeed is not enabled for ${chName}Run \`/slackfeed enable\` to start.${permStr}` });
         }
 
         default: {
           if (!cmd) {
             return jsonResponse({
               response_type: "ephemeral",
-              text: "Commands: \`enable [#channel]\` | \`disable [#channel]\` | \`status [#channel]\` | \`enable [#channel] auto @user\` | \`enable [#channel] manual\` | \`disable [#channel] auto [@user]\` | \`auto list [#channel]\` | \`webhook <url>\`",
+              text: "Commands: \`enable [#channel]\` | \`disable [#channel]\` | \`status [#channel]\` | \`enable [#channel] auto @user\` | \`enable [#channel] manual\` | \`disable [#channel] auto [@user]\` | \`auto list [#channel]\` | \`webhook <url>\` | \`schema set <json>\` | \`schema get\` | \`schema clear\`",
             });
           }
 
@@ -536,9 +669,53 @@ const server = Bun.serve({
             return jsonResponse({ response_type: "ephemeral", text: `Auto-approve in #${ch.name}: ${users}` });
           }
 
+          if (cmd === "schema") {
+            // /slackfeed [#channel] schema set <json> | schema get | schema clear
+
+            if (subcmd === "get") {
+              if (!ch.metadataSchema) {
+                return jsonResponse({ response_type: "ephemeral", text: "No metadata schema configured for this channel." });
+              }
+              try {
+                const pretty = JSON.stringify(JSON.parse(ch.metadataSchema), null, 2);
+                return jsonResponse({ response_type: "ephemeral", text: `\`\`\`${pretty}\`\`\`` });
+              } catch {
+                return jsonResponse({ response_type: "ephemeral", text: `Raw schema:\n${ch.metadataSchema}` });
+              }
+            }
+
+            if (subcmd === "clear") {
+              ch.metadataSchema = "";
+              await store.upsertChannel(ch);
+              return jsonResponse({ response_type: "ephemeral", text: "Metadata schema cleared." });
+            }
+
+            if (subcmd === "set") {
+              if (!arg) {
+                return jsonResponse({ response_type: "ephemeral", text: "Usage: \`/indigestion schema set <json>\` — provide a valid metadata schema JSON." });
+              }
+              try {
+                const parsed = JSON.parse(arg);
+                if (!parsed.fields || !Array.isArray(parsed.fields)) {
+                  return jsonResponse({ response_type: "ephemeral", text: "Schema must have a \`fields\` array. Example: \`{\"title\": \"Metadata\", \"fields\": [{\"action_id\": \"title\", \"label\": \"Title\", \"type\": \"plain_text_input\"}]}\`" });
+                }
+                ch.metadataSchema = JSON.stringify(parsed);
+                await store.upsertChannel(ch);
+                return jsonResponse({ response_type: "ephemeral", text: `✅ Metadata schema set with ${parsed.fields.length} field(s).` });
+              } catch (e: any) {
+                return jsonResponse({ response_type: "ephemeral", text: `Invalid JSON: ${e.message}` });
+              }
+            }
+
+            return jsonResponse({
+              response_type: "ephemeral",
+              text: "Usage: \`/indigestion schema set <json>\` | \`/indigestion schema get\` | \`/indigestion schema clear\`",
+            });
+          }
+
           return jsonResponse({
             response_type: "ephemeral",
-            text: "Commands: \`enable [#channel]\` | \`disable [#channel]\` | \`status [#channel]\` | \`enable [#channel] auto @user\` | \`enable [#channel] manual\` | \`disable [#channel] auto @user\` | \`auto list [#channel]\` | \`webhook <url>\`",
+            text: "Commands: \`enable [#channel]\` | \`disable [#channel]\` | \`status [#channel]\` | \`enable [#channel] auto @user\` | \`enable [#channel] manual\` | \`disable [#channel] auto @user\` | \`auto list [#channel]\` | \`webhook <url>\` | \`schema set <json>\` | \`schema get\` | \`schema clear\`",
           });
         }
       }

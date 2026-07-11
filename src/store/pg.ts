@@ -17,7 +17,7 @@ export class PostgresStore implements Store {
     const rows = await this.db.select().from(schema.channels).where(eq(schema.channels.id, id)).limit(1);
     if (rows.length === 0) return null;
     const r = rows[0];
-    return { id: r.id, name: r.name, teamId: r.teamId, enabled: Boolean(r.enabled), webhookUrl: r.webhookUrl, autoApproveUsers: r.autoApproveUsers ? r.autoApproveUsers.split(",").filter(Boolean) : [], createdAt: r.createdAt };
+    return { id: r.id, name: r.name, teamId: r.teamId, enabled: Boolean(r.enabled), webhookUrl: r.webhookUrl, autoApproveUsers: r.autoApproveUsers ? r.autoApproveUsers.split(",").filter(Boolean) : [], metadataSchema: r.metadataSchema, createdAt: r.createdAt };
   }
 
   async upsertChannel(ch: StoreChannel): Promise<void> {
@@ -30,6 +30,7 @@ export class PostgresStore implements Store {
         enabled: ch.enabled ? 1 : 0,
         webhookUrl: ch.webhookUrl,
         autoApproveUsers: ch.autoApproveUsers.join(","),
+        metadataSchema: ch.metadataSchema,
         createdAt: sql`COALESCE((SELECT created_at FROM channels WHERE id = ${ch.id}), now()::text)`,
       })
       .onConflictDoUpdate({
@@ -40,13 +41,14 @@ export class PostgresStore implements Store {
           enabled: ch.enabled ? 1 : 0,
           webhookUrl: ch.webhookUrl,
           autoApproveUsers: ch.autoApproveUsers.join(","),
+          metadataSchema: ch.metadataSchema,
         },
       });
   }
 
   async listEnabledChannels(): Promise<StoreChannel[]> {
     const rows = await this.db.select().from(schema.channels).where(eq(schema.channels.enabled, 1));
-    return rows.map((r) => ({ id: r.id, name: r.name, teamId: r.teamId, enabled: true, webhookUrl: r.webhookUrl, autoApproveUsers: r.autoApproveUsers ? r.autoApproveUsers.split(",").filter(Boolean) : [], createdAt: r.createdAt }));
+    return rows.map((r) => ({ id: r.id, name: r.name, teamId: r.teamId, enabled: true, webhookUrl: r.webhookUrl, autoApproveUsers: r.autoApproveUsers ? r.autoApproveUsers.split(",").filter(Boolean) : [], metadataSchema: r.metadataSchema, createdAt: r.createdAt }));
   }
 
   async upsertMessage(msg: StoreMessage): Promise<void> {
@@ -59,6 +61,7 @@ export class PostgresStore implements Store {
         userName: msg.userName,
         text: msg.text,
         timestamp: msg.timestamp,
+        metadata: typeof msg.metadata === "string" ? msg.metadata : JSON.stringify(msg.metadata || {}),
       })
       .onConflictDoUpdate({
         target: [schema.messages.channelId, schema.messages.slackTs],
@@ -67,6 +70,7 @@ export class PostgresStore implements Store {
           userName: msg.userName,
           text: msg.text,
           timestamp: msg.timestamp,
+          metadata: typeof msg.metadata === "string" ? msg.metadata : JSON.stringify(msg.metadata || {}),
         },
       });
   }
@@ -88,6 +92,7 @@ export class PostgresStore implements Store {
       userName: r.userName,
       text: r.text,
       timestamp: r.timestamp,
+      metadata: typeof r.metadata === "string" ? r.metadata : JSON.stringify(r.metadata || {}),
     }));
   }
 
