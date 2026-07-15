@@ -3,8 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/index.ts",
-    "build": "bun build src/vercel.ts --outdir output --target=node",
+    "start": "bun run bun.ts",
     "test": "bun test",
     "test:pg": "TEST_DATABASE_URL=postgres://indigestion:indigestion@localhost:5433/indigestion_test bun test",
     "db:push": "drizzle-kit push",

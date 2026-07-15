@@ -154,7 +154,7 @@ app.use("/api/*", async (c, next) => {
 // === Slack Events ===
 app.post("/events", async (c) => {
   const body = await c.req.text();
-  const payload = JSON.parse(body);
+\  const payload = JSON.parse(body);
 
   if (payload.type === "url_verification") {
     return c.text(payload.challenge, 200, { "Content-Type": "text/plain" });

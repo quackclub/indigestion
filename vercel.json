@@ -1,12 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run build",
-  "outputDirectory": "output",
   "framework": null,
-  "routes": [
+  "builds": [
     {
-      "src": "/(.*)",
-      "dest": "src/vercel.ts"
+      "src": "src/index.ts",
+      "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "src/index.ts" }
   ]
 }
