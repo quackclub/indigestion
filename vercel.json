@@ -6,7 +6,7 @@
   "functions": {
     "src/vercel.ts": {
       "runtime": "vercel-node@2",
-      "includeFiles": ["src/**"]
+      "includeFiles": "src/**"
     }
   },
   "routes": [
