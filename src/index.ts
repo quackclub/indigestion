@@ -1,11 +1,10 @@
-import { serve } from "@hono/node-server";
 import app from "./app";
 
 const PORT = parseInt(process.env.PORT || "8080");
 
-serve({
-  fetch: app.fetch,
+Bun.serve({
   port: PORT,
+  fetch: app.fetch,
 });
 
 console.log(`indigestion listening on http://localhost:${PORT}`);

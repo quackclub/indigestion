@@ -24,7 +24,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.9",
     "@orpc/client": "^1.14.7",
     "@orpc/openapi": "^1.14.7",
     "@orpc/server": "^1.14.7",
