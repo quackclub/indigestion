@@ -5,6 +5,7 @@
     "": {
       "name": "indigestion",
       "dependencies": {
+        "@hono/node-server": "^2.0.9",
         "@orpc/client": "^1.14.7",
         "@orpc/openapi": "^1.14.7",
         "@orpc/server": "^1.14.7",
@@ -12,6 +13,7 @@
         "@slack/web-api": "^7.18.0",
         "drizzle-orm": "^0.45.2",
         "feed": "^5.2.1",
+        "hono": "^4.12.30",
         "postgres": "^3.4.9",
         "zod": "^4.4.3",
       },
@@ -82,6 +84,8 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.25.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
+
+    "@hono/node-server": ["@hono/node-server@2.0.9", "", { "peerDependencies": { "hono": "^4" } }, "sha512-cNMw3ziCdDcx0+ldta60zvUL5XO0OLt521n2hjPp0PB0ugczDCEczXsf33qQbkKIXWGFQ03f0LC85u6YK8pCLA=="],
 
     "@orpc/client": ["@orpc/client@1.14.7", "", { "dependencies": { "@orpc/shared": "1.14.7", "@orpc/standard-server": "1.14.7", "@orpc/standard-server-fetch": "1.14.7", "@orpc/standard-server-peer": "1.14.7" } }, "sha512-/yloM96/6Z3qlmEgW4/VMYUnhxXbCr6lIJiKSHmsvhgKcwrUPOPJrL3p0ZpItz5SKVtQSwXIhT5KcT/3va/Aew=="],
 
@@ -274,6 +278,8 @@
     "has-tostringtag": ["has-tostringtag@1.0.2", "", { "dependencies": { "has-symbols": "^1.0.3" } }, "sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw=="],
 
     "hasown": ["hasown@2.0.4", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A=="],
+
+    "hono": ["hono@4.12.30", "", {}, "sha512-emn+JoJjrN9YTpRDS5it/UI2SO9BAE37T6I3d963RxcZ81G9A4pr2SZTEiiaiKbzx+NKRg5BZ89fCL7gCJCUog=="],
 
     "http-errors": ["http-errors@2.0.1", "", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
 
