@@ -154,14 +154,14 @@ app.use("/api/*", async (c, next) => {
 // === Slack Events ===
 app.post("/events", async (c) => {
   const body = await c.req.text();
-  if (!verifySignature(c.req.raw, body)) {
-    return c.json({ error: "invalid signature" }, 401);
-  }
-
   const payload = JSON.parse(body);
 
   if (payload.type === "url_verification") {
     return c.text(payload.challenge, 200, { "Content-Type": "text/plain" });
+  }
+
+  if (!verifySignature(c.req.raw, body)) {
+    return c.json({ error: "invalid signature" }, 401);
   }
 
   if (payload.type === "event_callback") {
